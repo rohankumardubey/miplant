@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"fmt"
 
 	"gobot.io/x/gobot"
 	"gobot.io/x/gobot/platforms/ble"
@@ -19,11 +19,10 @@ type MiPlantDriver struct {
 // NewMiPlantDriver creates a BatteryDriver
 func NewMiPlantDriver(a ble.BLEConnector) *MiPlantDriver {
 	n := &MiPlantDriver{
-		name:       gobot.DefaultName("MiPLant"),
+		name:       gobot.DefaultName("Flower care"),
 		connection: a,
 		Eventer:    gobot.NewEventer(),
 	}
-
 	return n
 }
 
@@ -43,6 +42,11 @@ func (m *MiPlantDriver) adaptor() ble.BLEConnector {
 
 // Start tells driver to get ready to do work
 func (m *MiPlantDriver) Start() (err error) {
+
+	m.adaptor().Subscribe("0021", func(data []byte, err error) {
+		fmt.Println("Event ...", data, err)
+	})
+
 	return
 }
 
@@ -50,11 +54,20 @@ func (m *MiPlantDriver) Start() (err error) {
 func (m *MiPlantDriver) Halt() (err error) { return }
 
 // GetBatteryLevel reads and returns the current battery level
-func (m *MiPlantDriver) GetBatteryLevel() (level uint8) {
-	var l uint8
-	c, _ := m.adaptor().ReadCharacteristic("0038")
-	buf := bytes.NewBuffer(c)
-	val, _ := buf.ReadByte()
-	l = uint8(val)
-	return l
+func (m *MiPlantDriver) GetBatteryLevel() (level uint8, err error) {
+	/*
+		var l uint8
+		c, err := m.adaptor().ReadCharacteristic("0038") //"0038"
+		if err != nil {
+			return 0, err
+		}
+		buf := bytes.NewBuffer(c)
+		val, err := buf.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		l = uint8(val)
+		return l, nil
+	*/
+	return 0, nil
 }
