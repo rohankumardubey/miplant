@@ -7,6 +7,8 @@ import (
 
 	"gobot.io/x/gobot"
 	"gobot.io/x/gobot/platforms/ble"
+
+	"github.com/sapk/miplant/driver"
 )
 
 func main() {
@@ -14,7 +16,7 @@ func main() {
 	//generic := ble.NewGenericAccessDriver(bleAdaptor)
 	//information := ble.NewDeviceInformationDriver(bleAdaptor)
 	//battery := ble.NewBatteryDriver(bleAdaptor)
-	miplant := NewMiPlantDriver(bleAdaptor)
+	miplant := driver.NewMiPlantDriver(bleAdaptor)
 	work := func() {
 		gobot.Every(15*time.Second, func() {
 			fmt.Println("Loop ...")
