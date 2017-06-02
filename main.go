@@ -1,53 +1,44 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"time"
+	"github.com/muka/go-bluetooth/api"
+	"github.com/sapk/miplant/device"
 
-	"gobot.io/x/gobot"
-	"gobot.io/x/gobot/platforms/ble"
-
-	"github.com/sapk/miplant/driver"
+	"github.com/op/go-logging"
+	"github.com/tj/go-debug"
 )
 
+var log = logging.MustGetLogger("main")
+var dbg = debug.Debug("bluez:main")
+
+var adapterID = "hci0"               //TODO arg
+var tagAddress = "C4:7C:8D:61:F7:81" //TODO arg
+
 func main() {
-	bleAdaptor := ble.NewClientAdaptor(os.Args[1])
-	//generic := ble.NewGenericAccessDriver(bleAdaptor)
-	//information := ble.NewDeviceInformationDriver(bleAdaptor)
-	//battery := ble.NewBatteryDriver(bleAdaptor)
-	miplant := driver.NewMiPlantDriver(bleAdaptor)
-	work := func() {
-		gobot.Every(15*time.Second, func() {
-			fmt.Println("Loop ...")
-			/*
-				fmt.Println("Device Name:", generic.GetDeviceName())
-				fmt.Println("Appearance:", generic.GetAppearance())
-			//*/
-			/*
-				fmt.Println("Battery level:", battery.GetBatteryLevel())
-			//*/
-			/*
-				fmt.Println("Manufacturer:", information.GetManufacturerName())
-				fmt.Println("ModelNumber:", information.GetModelNumber())
-				fmt.Println("HardwareRevision:", information.GetHardwareRevision())
-				fmt.Println("FirmwareRevision:", information.GetFirmwareRevision())
-				fmt.Println("PnPId:", information.GetPnPId())
-			//*/
-			bat, err := miplant.GetBatteryLevel()
-			if err != nil {
-				fmt.Println("Failed Custom Battery level:", err)
-			} else {
-				fmt.Println("Custom Battery level:", bat)
-			}
-		})
+	devList, err := api.GetDevices()
+	for _, d := range devList {
+		log.Info(d.Properties.Address)
 	}
-
-	robot := gobot.NewRobot("miplantBot",
-		[]gobot.Connection{bleAdaptor},
-		[]gobot.Device{miplant},
-		work,
-	)
-
-	robot.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
+	dev, err := api.GetDeviceByAddress(tagAddress)
+	//dev, err := api.GetDevices()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if dev == nil {
+		log.Fatal("Device not found")
+	}
+	/*
+		err = dev.Connect()
+		if err != nil {
+			log.Fatal(err)
+		}
+	*/
+	miplant, err := device.NewMiPlant(dev) //Use 0
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Info(miplant, err)
 }
