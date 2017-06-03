@@ -53,7 +53,12 @@ func main() {
 
 	data, cached, err := getData(client)
 	log.Printf("Data %v %v %v", data, cached, err)
-	parseData(data)
+	temp, ligth, fert, moist := parseData(data)
+
+	log.Printf("Temperature: %v °C", temp)
+	log.Printf("Moisture: %v %%", moist)
+	log.Printf("Light: %v lux", ligth)
+	log.Printf("Fertility: %v uS/cm", fert)
 }
 
 func activateRealtimeData(client ble.Client) error {
@@ -62,14 +67,12 @@ func activateRealtimeData(client ble.Client) error {
 	}, []byte{0xa0, 0x1f}, false)
 }
 
-func parseData(data []byte) {
-	temp := (float64(data[1])*256 + float64(data[0])) / 10
-	log.Printf("Temperature: %v °C", temp)
-	log.Printf("Moisture: %v %%", uint(data[7]))
-	ligth := uint(data[4])*256 + uint(data[3])
-	log.Printf("Light: %v lux", ligth)
-	fert := uint(data[9])*256 + uint(data[8])
-	log.Printf("Fertility: %v uS/cm", fert)
+func parseData(data []byte) (temp float64, ligth, fert, moist uint) {
+	temp = (float64(data[1])*256 + float64(data[0])) / 10
+	moist = uint(data[7])
+	ligth = uint(data[4])*256 + uint(data[3])
+	fert = uint(data[9])*256 + uint(data[8])
+	return temp, ligth, fert, moist
 }
 
 func getData(client ble.Client) ([]byte, bool, error) {
