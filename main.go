@@ -19,6 +19,34 @@ var (
 	interval = flag.Duration("i", time.Minute, "interval between collection")
 )
 
+var battery uint8
+var firmware string
+
+func exec() {
+	client, err := connect(*addr)
+	if err != nil {
+		log.Fatalf("connect failed : %s", err)
+	}
+	log.Printf("Connected to %s", client.Address())
+
+	if battery == 0 {
+		battery, cached, err := getBattery(client)
+		log.Printf("Battery %v %v %v", battery, cached, err)
+
+		firmware, cached, err := getFirmware(client)
+		log.Printf("Firmware %v %v %v", firmware, cached, err)
+	}
+
+	err = activateRealtimeData(client)
+	//log.Printf("Set realtime %v", err)
+	data, cached, err := getData(client)
+	//log.Printf("Data %v %v %v", data, cached, err)
+	temp, ligth, fert, moist := parseData(data)
+
+	log.Printf("Temperature: %v °C, Moisture: %v %%, Light: %v lux, Fertility: %v uS/cm", temp, moist, ligth, fert)
+
+	client.CancelConnection()
+}
 func main() {
 	flag.Parse()
 
@@ -28,37 +56,24 @@ func main() {
 	}
 	ble.SetDefaultDevice(d)
 
-	client, err := connect(*addr)
-	if err != nil {
-		log.Fatalf("connect failed : %s", err)
-	}
-	log.Printf("Connected to %s", client.Address())
-
-	/*
-		profile, err := client.DiscoverProfile(true)
-		if err != nil {
-			log.Fatalf("can't discover profile : %s", err)
+	ticker := time.NewTicker(*interval)
+	quit := make(chan struct{})
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				exec()
+			case <-quit:
+				ticker.Stop()
+				done <- true //Trigger at end
+				return
+			}
 		}
-		log.Printf("Profile %v", profile.Services)
-	*/
+	}()
 
-	batt, cached, err := getBattery(client)
-	log.Printf("Battery %v %v %v", batt, cached, err)
-
-	firmware, cached, err := getFirmware(client)
-	log.Printf("Firmware %v %v %v", firmware, cached, err)
-
-	err = activateRealtimeData(client)
-	log.Printf("Set realtime %v", err)
-
-	data, cached, err := getData(client)
-	log.Printf("Data %v %v %v", data, cached, err)
-	temp, ligth, fert, moist := parseData(data)
-
-	log.Printf("Temperature: %v °C", temp)
-	log.Printf("Moisture: %v %%", moist)
-	log.Printf("Light: %v lux", ligth)
-	log.Printf("Fertility: %v uS/cm", fert)
+	exec()
+	<-done
 }
 
 func activateRealtimeData(client ble.Client) error {
