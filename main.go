@@ -39,7 +39,7 @@ func exec() {
 
 	err = activateRealtimeData(client)
 	//log.Printf("Set realtime %v", err)
-	data, cached, err := getData(client)
+	data, _, err := getData(client)
 	//log.Printf("Data %v %v %v", data, cached, err)
 	temp, ligth, fert, moist := parseData(data)
 
