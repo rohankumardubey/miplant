@@ -1,69 +1,104 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"os"
+	"log"
 	"time"
 
-	"gobot.io/x/gobot"
-	"gobot.io/x/gobot/platforms/ble"
+	"github.com/currantlabs/ble"
+	"github.com/currantlabs/ble/examples/lib/dev"
 
-	"github.com/sapk/miplant/driver"
+	"golang.org/x/net/context"
+)
+
+var (
+	device   = flag.String("device", "default", "implementation of ble")
+	addr     = flag.String("addr", "", "Address of remote device")
+	timeout  = flag.Duration("t", 5*time.Second, "timeout for search of addr")
+	interval = flag.Duration("i", time.Minute, "interval between collection")
 )
 
 func main() {
-	bleAdaptor := ble.NewClientAdaptor(os.Args[1])
-	//generic := ble.NewGenericAccessDriver(bleAdaptor)
-	//information := ble.NewDeviceInformationDriver(bleAdaptor)
-	//battery := ble.NewBatteryDriver(bleAdaptor)
-	miplant := driver.NewMiPlantDriver(bleAdaptor)
-	work := func() {
-		gobot.Every(60*time.Second, func() {
-			fmt.Println("Loop ...")
-			/*
-				fmt.Println("Device Name:", generic.GetDeviceName())
-				fmt.Println("Appearance:", generic.GetAppearance())
-			//*/
-			/*
-				fmt.Println("Battery level:", battery.GetBatteryLevel())
-			//*/
-			/*
-				fmt.Println("Manufacturer:", information.GetManufacturerName())
-				fmt.Println("ModelNumber:", information.GetModelNumber())
-				fmt.Println("HardwareRevision:", information.GetHardwareRevision())
-				fmt.Println("FirmwareRevision:", information.GetFirmwareRevision())
-				fmt.Println("PnPId:", information.GetPnPId())
-			//*/
-			//*
-			firm, err := miplant.GetFirmware()
-			if err != nil {
-				fmt.Println("Failed Firmware level:", err)
-			} else {
-				fmt.Println("Firmware level:", firm)
-			}
-			//*/
-			name, err := miplant.GetName()
-			if err != nil {
-				fmt.Println("Failed GetName: ", err)
-			} else {
-				fmt.Println("GetName: ", name)
-			}
-			//*
-			batt, err := miplant.GetBatteryLevel()
-			if err != nil {
-				fmt.Println("Failed Custom Battery level:", err)
-			} else {
-				fmt.Println("Custom Battery level:", batt)
-			}
-			//*/
-		})
+	flag.Parse()
+
+	d, err := dev.NewDevice(*device)
+	if err != nil {
+		log.Fatalf("can't new device : %s", err)
+	}
+	ble.SetDefaultDevice(d)
+
+	client, err := connect(*addr)
+	if err != nil {
+		log.Fatalf("connect failed : %s", err)
+	}
+	log.Printf("Connected to %s", client.Address())
+
+	/*
+		profile, err := client.DiscoverProfile(true)
+		if err != nil {
+			log.Fatalf("can't discover profile : %s", err)
+		}
+		log.Printf("Profile %v", profile.Services)
+	*/
+
+	batt, cached, err := getBattery(client)
+	log.Printf("Battery %v %v %v", batt, cached, err)
+
+	firmware, cached, err := getFirmware(client)
+	log.Printf("Firmware %v %v %v", firmware, cached, err)
+
+	err = activateRealtimeData(client)
+	log.Printf("Set realtime %v", err)
+
+	data, cached, err := getData(client)
+	log.Printf("Data %v %v %v", data, cached, err)
+	parseData(data)
+}
+
+func activateRealtimeData(client ble.Client) error {
+	return client.WriteCharacteristic(&ble.Characteristic{
+		ValueHandle: 0x33,
+	}, []byte{0xa0, 0x1f}, false)
+}
+
+func parseData(data []byte) {
+	temp := (float64(data[1])*256 + float64(data[0])) / 10
+	log.Printf("Temperature: %v °C", temp)
+	log.Printf("Moisture: %v %%", uint(data[7]))
+	ligth := uint(data[4])*256 + uint(data[3])
+	log.Printf("Light: %v lux", ligth)
+	fert := uint(data[9])*256 + uint(data[8])
+	log.Printf("Fertility: %v uS/cm", fert)
+}
+
+func getData(client ble.Client) ([]byte, bool, error) {
+	b, err := client.ReadCharacteristic(&ble.Characteristic{
+		ValueHandle: 0x35,
+	})
+	return b, false, err
+}
+func getFirmware(client ble.Client) (string, bool, error) {
+	b, err := client.ReadCharacteristic(&ble.Characteristic{
+		ValueHandle: 0x38,
+	})
+	return string(b[2:]), false, err
+}
+
+func getBattery(client ble.Client) (uint8, bool, error) {
+	b, err := client.ReadCharacteristic(&ble.Characteristic{
+		ValueHandle: 0x38,
+	})
+	return uint8(b[0]), false, err
+}
+
+func connect(addr string) (ble.Client, error) {
+	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), *interval))
+	if addr != "" {
+		bleAddr := ble.NewAddr(addr)
+		fmt.Printf("Dialing to specified address: %s\n", bleAddr)
+		return ble.Dial(ctx, bleAddr)
 	}
 
-	robot := gobot.NewRobot("miplantBot",
-		[]gobot.Connection{bleAdaptor},
-		[]gobot.Device{miplant},
-		work,
-	)
-
-	robot.Start()
+	return nil, fmt.Errorf("no addr specified")
 }
